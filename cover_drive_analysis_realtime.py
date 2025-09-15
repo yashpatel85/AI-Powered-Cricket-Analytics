@@ -4,14 +4,14 @@ import yaml
 import os
 
 from utils.pose import PoseEstimator
-from utils import metrics
+from utils import metrics, evaluation
 
 
 def analyze_video(input_path, output_path=None, config=None):
     cap = cv2.VideoCapture(input_path)
 
     if not cap.isOpened():
-        print(f"❌ Error: Could not open {input_path}")
+        print(f"Error: Could not open {input_path}")
         return
 
     # Setup output writer if needed
@@ -26,6 +26,9 @@ def analyze_video(input_path, output_path=None, config=None):
     # Pose estimator
     pose_estimator = PoseEstimator()
 
+    # List to collect per-frame metrics
+    all_metrics = []
+
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
@@ -34,6 +37,8 @@ def analyze_video(input_path, output_path=None, config=None):
         # Get landmarks + annotated frame
         landmarks, annotated_frame = pose_estimator.process_frame(frame, draw=True)
 
+        elbow_angle = spine_lean = head_knee_dist = foot_angle = None
+
         if landmarks:
             # --- Compute metrics ---
             elbow_angle = metrics.compute_elbow_angle(landmarks, side="LEFT")
@@ -41,7 +46,15 @@ def analyze_video(input_path, output_path=None, config=None):
             head_knee_dist = metrics.compute_head_over_knee(landmarks, side="LEFT")
             foot_angle = metrics.compute_foot_direction(landmarks, side="LEFT")
 
-            # --- Overlay results ---
+            # --- Log to console ---
+            print(
+                f"Elbow: {elbow_angle:.1f}° | Spine: {spine_lean:.1f}° | "
+                f"Head-Knee: {head_knee_dist:.1f}px | Foot: {foot_angle:.1f}°"
+                if elbow_angle and spine_lean and head_knee_dist and foot_angle
+                else "Pose detected but some metrics missing"
+            )
+
+            # --- Overlay numeric metrics ---
             overlay_texts = [
                 f"Elbow Angle: {elbow_angle:.1f}°" if elbow_angle else "Elbow Angle: N/A",
                 f"Spine Lean: {spine_lean:.1f}°" if spine_lean else "Spine Lean: N/A",
@@ -52,30 +65,44 @@ def analyze_video(input_path, output_path=None, config=None):
             y0, dy = 30, 30
             for i, text in enumerate(overlay_texts):
                 y = y0 + i * dy
-                cv2.putText(
-                    annotated_frame,
-                    text,
-                    (10, y),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (0, 255, 0),
-                    2,
-                    cv2.LINE_AA,
-                )
+                # Black border
+                cv2.putText(annotated_frame, text, (10, y),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 4, cv2.LINE_AA)
+                # White text
+                cv2.putText(annotated_frame, text, (10, y),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
 
-        # Write or display
+        # --- Collect metrics for evaluation ---
+        frame_metrics = {
+            "elbow": elbow_angle,
+            "spine": spine_lean,
+            "head_knee": head_knee_dist,
+            "foot": foot_angle
+        }
+        all_metrics.append(frame_metrics)
+
+        # --- Live display ---
+        cv2.imshow("Cover Drive Analysis", annotated_frame)
+
+        # --- Write output video ---
         if writer:
             writer.write(annotated_frame)
-        else:
-            cv2.imshow("Cover Drive Analysis", annotated_frame)
 
+        # Quit early on 'q'
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
+    # Release resources
     cap.release()
     if writer:
         writer.release()
     cv2.destroyAllWindows()
+
+    # --- Final evaluation ---
+    eval_result = evaluation.evaluate_shot(all_metrics)
+    evaluation.save_evaluation(eval_result, "output/evaluation.json")
+    print("✅ Evaluation saved to output/evaluation.json")
+    print(eval_result)
 
 
 def main():
@@ -95,4 +122,6 @@ def main():
 
 
 if __name__ == "__main__":
+    # Suppress TensorFlow warnings
+    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
     main()

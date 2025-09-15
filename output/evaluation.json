@@ -1,22 +1,16 @@
 {
-    "Footwork": {
-        "score": 7,
-        "feedback": "Decent, but needs improvement."
+    "scores": {
+        "Footwork": 1,
+        "Head Position": 1,
+        "Swing Control": 3,
+        "Balance": 1,
+        "Follow-through": 1
     },
-    "Head Position": {
-        "score": 8,
-        "feedback": "Good alignment."
-    },
-    "Swing Control": {
-        "score": 6,
-        "feedback": "Work on follow-through."
-    },
-    "Balance": {
-        "score": 7,
-        "feedback": "Maintain more stability."
-    },
-    "Follow-through": {
-        "score": 8,
-        "feedback": "Well executed."
+    "feedback": {
+        "Footwork": "Needs improvement",
+        "Head Position": "Needs improvement",
+        "Swing Control": "Needs improvement",
+        "Balance": "Needs improvement",
+        "Follow-through": "Needs improvement"
     }
 }
