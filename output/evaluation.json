@@ -1,6 +1,22 @@
 {
-  "video": "output\\annotated_video.mp4",
-  "scores": {},
-  "comments": {},
-  "metrics_summary": {}
+    "Footwork": {
+        "score": 7,
+        "feedback": "Decent, but needs improvement."
+    },
+    "Head Position": {
+        "score": 8,
+        "feedback": "Good alignment."
+    },
+    "Swing Control": {
+        "score": 6,
+        "feedback": "Work on follow-through."
+    },
+    "Balance": {
+        "score": 7,
+        "feedback": "Maintain more stability."
+    },
+    "Follow-through": {
+        "score": 8,
+        "feedback": "Well executed."
+    }
 }

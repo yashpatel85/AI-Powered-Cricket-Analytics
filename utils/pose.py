@@ -21,7 +21,7 @@ class PoseEstimator:
 
     def process_frame(self, frame, draw = False):
 
-        rgb = cv2.cvtColor(frame, cv2.BGR2RGB)
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.pose.process(rgb)
 
         landmarks = {}
@@ -36,7 +36,7 @@ class PoseEstimator:
                     frame,
                     results.pose_landmarks,
                     self.mp_pose.POSE_CONNECTIONS,
-                    landmakr_drawing_spec = self.drawer_styles.get_default_pose_landmarks_style()
+                    landmark_drawing_spec = self.drawer_styles.get_default_pose_landmarks_style()
                 )
 
         return landmarks, frame

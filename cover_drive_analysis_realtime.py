@@ -36,7 +36,7 @@ def analyze_video(input_path, output_path, config):
             break
 
         # Pose estimation
-        landmarks, annotated_frame = pose_estimator.process_frame(frame, draw=True)
+        landmarks, annotated_frame = pose_estimator.process_frame(frame, draw = True)
 
         # Debug: print some key landmarks if detected
         if landmarks:
@@ -72,15 +72,15 @@ def analyze_video(input_path, output_path, config):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Real-time Cover Drive Analysis")
-    parser.add_argument("--input", required=True, help="Path to input video file")
-    parser.add_argument("--output", default="output/annotated_video.mp4", help="Path to output video file")
-    parser.add_argument("--config", default="config/config.yaml", help="Path to config file")
+    parser = argparse.ArgumentParser(description = "Real-time Cover Drive Analysis")
+    parser.add_argument("--input", required = True, help = "Path to input video file")
+    parser.add_argument("--output", default = "output/annotated_video.mp4", help = "Path to output video file")
+    parser.add_argument("--config", default = "config/config.yaml", help = "Path to config file")
 
     args = parser.parse_args()
 
     # Ensure output directory exists
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    os.makedirs(os.path.dirname(args.output), exist_ok = True)
 
     # Load config if available
     if os.path.exists(args.config):
