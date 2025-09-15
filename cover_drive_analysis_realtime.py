@@ -6,6 +6,46 @@ import os
 from utils.pose import PoseEstimator
 from utils import metrics, evaluation
 
+# --- Feedback thresholds ---
+FEEDBACK_THRESHOLDS = {
+    "elbow": (90, 130),       # degrees
+    "spine_lean": (-10, 10),  # degrees from vertical
+    "head_over_knee": 20,     # pixels
+    "foot_angle": (-15, 15),  # degrees
+}
+
+
+def get_feedback(elbow, spine, head_knee, foot):
+    """Return list of feedback strings per metric"""
+    feedbacks = []
+
+    if elbow is not None:
+        feedbacks.append(
+            "✅ Good elbow bend"
+            if FEEDBACK_THRESHOLDS["elbow"][0] <= elbow <= FEEDBACK_THRESHOLDS["elbow"][1]
+            else "⚠️ Elbow angle off"
+        )
+    if spine is not None:
+        feedbacks.append(
+            "✅ Spine posture OK"
+            if FEEDBACK_THRESHOLDS["spine_lean"][0] <= spine <= FEEDBACK_THRESHOLDS["spine_lean"][1]
+            else "⚠️ Spine posture off"
+        )
+    if head_knee is not None:
+        feedbacks.append(
+            "✅ Head over knee"
+            if head_knee <= FEEDBACK_THRESHOLDS["head_over_knee"]
+            else "⚠️ Head not over knee"
+        )
+    if foot is not None:
+        feedbacks.append(
+            "✅ Foot aligned"
+            if FEEDBACK_THRESHOLDS["foot_angle"][0] <= foot <= FEEDBACK_THRESHOLDS["foot_angle"][1]
+            else "⚠️ Foot misaligned"
+        )
+
+    return feedbacks
+
 
 def analyze_video(input_path, output_path=None, config=None):
     cap = cv2.VideoCapture(input_path)
@@ -28,6 +68,9 @@ def analyze_video(input_path, output_path=None, config=None):
 
     # List to collect per-frame metrics
     all_metrics = []
+
+    # Overlay positions
+    y0, dy = 30, 30
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -62,15 +105,22 @@ def analyze_video(input_path, output_path=None, config=None):
                 f"Foot Dir: {foot_angle:.1f}°" if foot_angle else "Foot Dir: N/A",
             ]
 
-            y0, dy = 30, 30
             for i, text in enumerate(overlay_texts):
                 y = y0 + i * dy
-                # Black border
                 cv2.putText(annotated_frame, text, (10, y),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 4, cv2.LINE_AA)
-                # White text
                 cv2.putText(annotated_frame, text, (10, y),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+
+            # --- Overlay feedback cues ---
+            feedbacks = get_feedback(elbow_angle, spine_lean, head_knee_dist, foot_angle)
+            for i, fb in enumerate(feedbacks):
+                y = y0 + (len(overlay_texts) + i) * dy
+                color = (0, 255, 0) if "✅" in fb else (0, 0, 255)
+                cv2.putText(annotated_frame, fb, (10, y),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 4, cv2.LINE_AA)
+                cv2.putText(annotated_frame, fb, (10, y),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv2.LINE_AA)
 
         # --- Collect metrics for evaluation ---
         frame_metrics = {
@@ -100,8 +150,9 @@ def analyze_video(input_path, output_path=None, config=None):
 
     # --- Final evaluation ---
     eval_result = evaluation.evaluate_shot(all_metrics)
-    evaluation.save_evaluation(eval_result, "output/evaluation.json")
-    print("✅ Evaluation saved to output/evaluation.json")
+    os.makedirs("results", exist_ok=True)
+    evaluation.save_evaluation(eval_result, "results/evaluation.json")
+    print("✅ Evaluation saved to results/evaluation.json")
     print(eval_result)
 
 
