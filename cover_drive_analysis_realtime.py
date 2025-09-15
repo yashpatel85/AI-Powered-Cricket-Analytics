@@ -1,93 +1,95 @@
-import argparse
-import os
 import cv2
+import argparse
 import yaml
-import json
+import os
+
 from utils.pose import PoseEstimator
+from utils import metrics
 
 
-def analyze_video(input_path, output_path, config):
+def analyze_video(input_path, output_path=None, config=None):
     cap = cv2.VideoCapture(input_path)
 
     if not cap.isOpened():
-        raise FileNotFoundError(f"Could not open video: {input_path}")
+        print(f"❌ Error: Could not open {input_path}")
+        return
 
-    # Video properties
-    fps = int(cap.get(cv2.CAP_PROP_FPS))
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    # Setup output writer if needed
+    writer = None
+    if output_path:
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        writer = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
 
-    # Output video writer
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    # Pose estimator
+    pose_estimator = PoseEstimator()
 
-    # Initialize pose estimator
-    pose_estimator = PoseEstimator(
-        static_image_mode=False,
-        model_complexity=1,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
-    )
-
-    frame_idx = 0
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
 
-        # Pose estimation
-        landmarks, annotated_frame = pose_estimator.process_frame(frame, draw = True)
+        # Get landmarks + annotated frame
+        landmarks, annotated_frame = pose_estimator.process_frame(frame, draw=True)
 
-        # Debug: print some key landmarks if detected
         if landmarks:
-            if "LEFT_ELBOW" in landmarks and "RIGHT_ELBOW" in landmarks:
-                print(
-                    f"Frame {frame_idx}: LEFT_ELBOW={landmarks['LEFT_ELBOW']}, "
-                    f"RIGHT_ELBOW={landmarks['RIGHT_ELBOW']}"
+            # --- Compute metrics ---
+            elbow_angle = metrics.compute_elbow_angle(landmarks, side="LEFT")
+            spine_lean = metrics.compute_spine_lean(landmarks, side="LEFT")
+            head_knee_dist = metrics.compute_head_over_knee(landmarks, side="LEFT")
+            foot_angle = metrics.compute_foot_direction(landmarks, side="LEFT")
+
+            # --- Overlay results ---
+            overlay_texts = [
+                f"Elbow Angle: {elbow_angle:.1f}°" if elbow_angle else "Elbow Angle: N/A",
+                f"Spine Lean: {spine_lean:.1f}°" if spine_lean else "Spine Lean: N/A",
+                f"Head-Knee X Dist: {head_knee_dist:.1f}px" if head_knee_dist else "Head-Knee: N/A",
+                f"Foot Dir: {foot_angle:.1f}°" if foot_angle else "Foot Dir: N/A",
+            ]
+
+            y0, dy = 30, 30
+            for i, text in enumerate(overlay_texts):
+                y = y0 + i * dy
+                cv2.putText(
+                    annotated_frame,
+                    text,
+                    (10, y),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 255, 0),
+                    2,
+                    cv2.LINE_AA,
                 )
 
-        out.write(annotated_frame)
-        frame_idx += 1
+        # Write or display
+        if writer:
+            writer.write(annotated_frame)
+        else:
+            cv2.imshow("Cover Drive Analysis", annotated_frame)
 
-    # Release resources
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+
     cap.release()
-    out.release()
-    pose_estimator.close()
-
-    # Dummy evaluation results (to be replaced with real metrics)
-    results = {
-        "Footwork": {"score": 7, "feedback": "Decent, but needs improvement."},
-        "Head Position": {"score": 8, "feedback": "Good alignment."},
-        "Swing Control": {"score": 6, "feedback": "Work on follow-through."},
-        "Balance": {"score": 7, "feedback": "Maintain more stability."},
-        "Follow-through": {"score": 8, "feedback": "Well executed."},
-    }
-
-    eval_path = os.path.join(os.path.dirname(output_path), "evaluation.json")
-    with open(eval_path, "w") as f:
-        json.dump(results, f, indent=4)
-
-    print(f"Annotated video saved to {output_path}")
-    print(f"Evaluation saved to {eval_path}")
+    if writer:
+        writer.release()
+    cv2.destroyAllWindows()
 
 
 def main():
-    parser = argparse.ArgumentParser(description = "Real-time Cover Drive Analysis")
-    parser.add_argument("--input", required = True, help = "Path to input video file")
-    parser.add_argument("--output", default = "output/annotated_video.mp4", help = "Path to output video file")
-    parser.add_argument("--config", default = "config/config.yaml", help = "Path to config file")
+    parser = argparse.ArgumentParser(description="Cricket Cover Drive Pose Analysis")
+    parser.add_argument("--input", required=True, help="Path to input video")
+    parser.add_argument("--output", help="Path to save annotated output video")
+    parser.add_argument("--config", help="YAML config file (optional)")
 
     args = parser.parse_args()
 
-    # Ensure output directory exists
-    os.makedirs(os.path.dirname(args.output), exist_ok = True)
-
-    # Load config if available
-    if os.path.exists(args.config):
+    config = None
+    if args.config and os.path.exists(args.config):
         with open(args.config, "r") as f:
             config = yaml.safe_load(f)
-    else:
-        config = {}
 
     analyze_video(args.input, args.output, config)
 
